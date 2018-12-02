@@ -1,18 +1,18 @@
 import java.io.*;
 
 
-class CoefConter implements Runnable {
-    CoefConter(int i, int j, double[][] m, double[] coefs) {
+class CoefTask implements Runnable {
+    CoefTask(int i, int j, double[][] m, double[] coefs) {
         this.i = i;
         this.j = j;
         this.m = m;
         this.coefs = coefs;
     }
 
-    int i;
-    int j;
-    double[][] m;
-    double[] coefs;
+    private int i;
+    private int j;
+    private double[][] m;
+    private double[] coefs;
 
     public void run() {
         coefs[i] = m[i][j] / m[j][j];
@@ -20,16 +20,16 @@ class CoefConter implements Runnable {
 }
 
 
-class OneableDividor implements Runnable {
-    OneableDividor(int i, double[][] m, double[] r) {
+class PostMultiplicationTask implements Runnable {
+    PostMultiplicationTask(int i, double[][] m, double[] r) {
         this.i = i;
         this.m = m;
         this.r = r;
     }
 
-    int i;
-    double[][] m;
-    double[] r;
+    private int i;
+    private double[][] m;
+    private double[] r;
 
     public void run() {
         r[i] /= m[i][i];
@@ -37,25 +37,40 @@ class OneableDividor implements Runnable {
     }
 }
 
-class RowMult implements Runnable {
-    RowMult(int i, int j, double[][] m, double c, double r[]) {
+class DivideLeftTask implements Runnable {
+    DivideLeftTask(int i, int j, int k, double[][] m, double c) {
         this.i = i;
         this.j = j;
         this.m = m;
+        this.k = k;
+        this.c = c;
+    }
+
+    private int i;
+    private int j;
+    private int k;
+    private double[][] m;
+    private double c;
+
+    public void run() {
+        m[j][k] -= c * m[i][k];
+    }
+}
+
+class DivideRightTask implements Runnable {
+    DivideRightTask(int i, int j, double c, double[] r) {
+        this.i = i;
+        this.j = j;
         this.c = c;
         this.r = r;
     }
 
-    int i;
-    int j;
-    double[][] m;
-    double[] r;
-    double c;
+    private int i;
+    private int j;
+    private double[] r;
+    private double c;
 
     public void run() {
-        for (int g = 0; g < m.length; g++) {
-            m[j][g] -= c * m[i][g];
-        }
         r[j] -= c * r[i];
     }
 }
@@ -63,7 +78,7 @@ class RowMult implements Runnable {
 public class Main {
     public static void main(String[] args) throws IOException, InterruptedException {
         File fil = new File("input.txt");
-        FileReader inputFil = null;
+        FileReader inputFil;
         inputFil = new FileReader(fil);
 
         BufferedReader in = new BufferedReader(inputFil);
@@ -95,7 +110,7 @@ public class Main {
                     continue;
                 }
                 coThrs[i] = new Thread(
-                        new CoefConter(i, j, lhs, coefs)
+                        new CoefTask(i, j, lhs, coefs)
                 );
             }
             for (int i = 0; i < size; i++) {
@@ -111,33 +126,43 @@ public class Main {
                 coThrs[i].join();
             }
 
-            Thread[] muThrs = new Thread[size];
+            Thread[][] muThrs = new Thread[size][size + 1];
             for (int i = 0; i < size; i++) {
                 if (i == j) {
                     continue;
                 }
-                muThrs[i] = new Thread(
-                        new RowMult(j, i, lhs, coefs[i], rhs)
+                for (int k = 0 ; k < size; k++) {
+                    muThrs[i][k] = new Thread(
+                            new DivideLeftTask(j, i, k, lhs, coefs[i])
+                    );
+                }
+                muThrs[i][size] = new Thread(
+                        new DivideRightTask(j, i, coefs[i], rhs)
                 );
             }
+
             for (int i = 0; i < size; i++) {
                 if (i == j) {
                     continue;
                 }
-                muThrs[i].start();
+                for (int k = 0 ; k < size + 1; k++) {
+                    muThrs[i][k].start();
+                }
             }
             for (int i = 0; i < size; i++) {
                 if (i == j) {
                     continue;
                 }
-                muThrs[i].join();
+                for (int k = 0 ; k < size + 1; k++) {
+                    muThrs[i][k].join();
+                }
             }
         }
 
         Thread[] divT = new Thread[size];
         for (int j = 0; j < size; j++) {
             divT[j] = new Thread(
-                    new OneableDividor(j, lhs, rhs)
+                    new PostMultiplicationTask(j, lhs, rhs)
             );
         }
         for (int j = 0; j < size; j++) {
